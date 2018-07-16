@@ -2,3 +2,6 @@
 source 'https://supermarket.chef.io'
 
 metadata
+group :integration do
+  cookbook 'opennms', path: '../opennms-cookbook'
+end

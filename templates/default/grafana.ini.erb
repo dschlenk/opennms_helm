@@ -1,0 +1,14 @@
+# This file is managed by Chef.
+# DO NOT MAKE MANUAL MODIFICATIONS TO THIS FILE
+
+<% @grafana['app'].each do |k, v| -%>
+<%= k %> = <%= v %>
+<% end -%>
+
+<% @grafana.each do |k, v| -%>
+  <% next if k == 'app' -%>
+[<%= k %>]
+  <% v.each do |m, w| -%>
+<%= m %> = <%= w %>
+  <% end -%>
+<% end -%>

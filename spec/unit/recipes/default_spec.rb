@@ -1,5 +1,5 @@
 #
-# Cookbook:: opennms-helm
+# Cookbook:: opennms_helm
 # Spec:: default
 #
 # Copyright:: 2018, ConvergeOne
@@ -18,12 +18,16 @@
 
 require 'spec_helper'
 
-describe 'opennms-helm::default' do
-  context 'When all attributes are default, on Ubuntu 16.04' do
+describe 'opennms_helm::default' do
+  context 'When all attributes are default, on CentOS 6.9' do
+    before do
+      stub_command('rpm -qai "*gpg*" | grep -q OpenNMS').and_return(false)
+    end
+
     let(:chef_run) do
       # for a complete list of available platforms and versions see:
       # https://github.com/customink/fauxhai/blob/master/PLATFORMS.md
-      runner = ChefSpec::ServerRunner.new(platform: 'ubuntu', version: '16.04')
+      runner = ChefSpec::ServerRunner.new(platform: 'centos', version: '6.9')
       runner.converge(described_recipe)
     end
 
@@ -33,6 +37,10 @@ describe 'opennms-helm::default' do
   end
 
   context 'When all attributes are default, on CentOS 7.4.1708' do
+    before do
+      stub_command('rpm -qai "*gpg*" | grep -q OpenNMS').and_return(false)
+    end
+
     let(:chef_run) do
       # for a complete list of available platforms and versions see:
       # https://github.com/customink/fauxhai/blob/master/PLATFORMS.md
