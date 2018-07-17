@@ -72,3 +72,15 @@ The default rake task will run the style, lint and unit tests.
 Use `rake integration:vagrant` to run the integration tests. 
 
 Pull requests welcome!
+
+FAQs
+====
+
+Q: Why aren't you using the [grafana cookbook](https://github.com/sous-chefs/grafana) to install Grafana?
+A: I don't have a particularly good reason. In fact, the next release most likely will use that cookbook to handle the installation of Grafana and will also let you decide if you want to handle installation of grafana on your own (with your own wrapper or whatnot).
+
+Q: Who is using this?
+A: Right now, mostly tests in the main OpenNMS cookbook, but once refactored to use the Grafana cookbook it should prove quite useful for anyone that wants to use Helm.
+
+Q: Can I do multiple OpenNMS data sources?
+A: Not yet. After the refactor, yes.
