@@ -1,5 +1,5 @@
 #
-# Cookbook:: opennms-helm
+# Cookbook:: opennms_helm
 # Recipe:: default
 #
 # Copyright:: 2018, ConvergeOne
@@ -62,10 +62,11 @@ end
 # curl -v --basic -XPOST 'admin:admin@localhost:3001/api/plugins/opennms-helm-app/settings?enabled=true' -d ''
 port = node['grafana_ini']['server']['http_port'] || 3000
 
+Chef::Resource::HttpRequest.send(:include, Opennms::Helm)
 http_request 'enable helm' do
   url "http://localhost:#{port}/api/plugins/opennms-helm-app/settings"
   message 'id=opennms-helm-app&enabled=true'
-  headers 'Authorization' => 'Basic YWRtaW46YWRtaW4='
+  headers lazy { auth_header(node) }
   action :post
   notifies :create, "file[#{Chef::Config['file_cache_path']}/helm_enabled]", :immediately
   not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/helm_enabled]") }
@@ -86,7 +87,7 @@ end
 http_request 'create performance datasource' do
   url "http://localhost:#{port}/api/datasources"
   message "{ \"name\": \"opennms-performance\",  \"type\": \"opennms-helm-performance-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers 'Authorization' => 'Basic YWRtaW46YWRtaW4=', 'Content-Type' => 'application/json'
+  headers lazy { json_auth_header(node) }
   action :post
   notifies :create, "file[#{Chef::Config['file_cache_path']}/performance_ds]", :immediately
   not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/performance_ds") }
@@ -95,7 +96,7 @@ end
 http_request 'create fault datasource' do
   url "http://localhost:#{port}/api/datasources"
   message "{ \"name\": \"opennms-fault\",  \"type\": \"opennms-helm-fault-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers 'Authorization' => 'Basic YWRtaW46YWRtaW4=', 'Content-Type' => 'application/json'
+  headers lazy { json_auth_header(node) }
   action :post
   notifies :create, "file[#{Chef::Config['file_cache_path']}/fault_ds]", :immediately
   not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/fault_ds") }
@@ -104,7 +105,7 @@ end
 http_request 'create flow datasource' do
   url "http://localhost:#{port}/api/datasources"
   message "{ \"name\": \"opennms-flow\",  \"type\": \"opennms-helm-flow-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers 'Authorization' => 'Basic YWRtaW46YWRtaW4=', 'Content-Type' => 'application/json'
+  headers lazy { json_auth_header(node) }
   action :post
   notifies :create, "file[#{Chef::Config['file_cache_path']}/flow_ds]", :immediately
   not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/flow_ds") }
