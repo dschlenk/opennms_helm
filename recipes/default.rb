@@ -16,51 +16,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-yum_repository 'grafana' do
-  baseurl node['helm']['grafana_yum']['baseurl']
-  gpgkey node['helm']['grafana_yum']['gpgkey']
-  only_if { node['helm']['manage_grafana_repo'] }
-end
-
-yum_package 'grafana' do
-  version node['grafana']['version']
-  flush_cache true
-end
+include_recipe 'grafana::default' if node['helm']['manage_grafana']
 
 package 'opennms-helm' do
   version node['helm']['version']
-end
-
-service 'grafana-server' do
-  supports status: true, restart: true
-  action :enable
-end
-
-template '/etc/grafana/grafana.ini' do
-  source 'grafana.ini.erb'
-  mode 00640
-  owner 'root'
-  group 'grafana'
-  variables(
-    grafana: node['grafana_ini']
-  )
-  notifies :restart, 'service[grafana-server]'
-end
-
-template '/etc/grafana/ldap.toml' do
-  source 'ldap.toml.erb'
-  mode 00640
-  owner 'root'
-  group 'grafana'
-  variables(
-    ldap: node['grafana_ldap']
-  )
   notifies :restart, 'service[grafana-server]', :immediately
 end
 
-# enable the helm app
-# curl -v --basic -XPOST 'admin:admin@localhost:3001/api/plugins/opennms-helm-app/settings?enabled=true' -d ''
-port = node['grafana_ini']['server']['http_port'] || 3000
+# enable the helm plugin
+# START until https://github.com/sous-chefs/grafana/pull/197
+#grafana_plugin 'opennms-helm-app' do
+#  action :install
+#end
+
+port = node['grafana']['ini']['server']['http_port'] || 3000
 
 Chef::Resource::HttpRequest.send(:include, Opennms::Helm)
 http_request 'enable helm' do
@@ -71,6 +40,7 @@ http_request 'enable helm' do
   notifies :create, "file[#{Chef::Config['file_cache_path']}/helm_enabled]", :immediately
   not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/helm_enabled]") }
 end
+# END until https://github.com/sous-chefs/grafana/pull/197
 
 opennms_host = 'localhost'
 if node.key?('opennms') && node['opennms'].key?('host')
@@ -84,41 +54,83 @@ opennms_password = 'admin'
 if node.key?('opennms') && node['opennms'].key?('secure_admin_password')
   opennms_password = node['opennms']['secure_admin_password']
 end
-http_request 'create performance datasource' do
-  url "http://localhost:#{port}/api/datasources"
-  message "{ \"name\": \"opennms-performance\",  \"type\": \"opennms-helm-performance-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers lazy { json_auth_header(node) }
-  action :post
-  notifies :create, "file[#{Chef::Config['file_cache_path']}/performance_ds]", :immediately
-  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/performance_ds") }
+grafana_datasource 'opennms-performance' do
+  datasource(
+    type: 'opennms-helm-performance-datasource',
+    access: 'proxy',
+    url: "http://#{opennms_host}:#{opennms_port}/opennms",
+    basicAuth: true,
+    basicAuthUser: 'admin',
+    basicAuthPassword: opennms_password,
+  )
+  admin_user node['grafana']['ini']['security']['admin_user']
+  admin_password node['grafana']['ini']['security']['admin_password']
+  action :create
 end
 
-http_request 'create fault datasource' do
-  url "http://localhost:#{port}/api/datasources"
-  message "{ \"name\": \"opennms-fault\",  \"type\": \"opennms-helm-fault-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers lazy { json_auth_header(node) }
-  action :post
-  notifies :create, "file[#{Chef::Config['file_cache_path']}/fault_ds]", :immediately
-  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/fault_ds") }
+#http_request 'create performance datasource' do
+#  url "http://localhost:#{port}/api/datasources"
+#  message "{ \"name\": \"opennms-performance\",  \"type\": \"opennms-helm-performance-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
+#  headers lazy { json_auth_header(node) }
+#  action :post
+#  notifies :create, "file[#{Chef::Config['file_cache_path']}/performance_ds]", :immediately
+#  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/performance_ds") }
+#end
+
+grafana_datasource 'opennms-fault' do
+  datasource(
+    type: 'opennms-helm-fault-datasource',
+    access: 'proxy',
+    url: "http://#{opennms_host}:#{opennms_port}/opennms",
+    basicAuth: true,
+    basicAuthUser: 'admin',
+    basicAuthPassword: opennms_password,
+  )
+  admin_user node['grafana']['ini']['security']['admin_user']
+  admin_password node['grafana']['ini']['security']['admin_password']
+  action :create
 end
 
-http_request 'create flow datasource' do
-  url "http://localhost:#{port}/api/datasources"
-  message "{ \"name\": \"opennms-flow\",  \"type\": \"opennms-helm-flow-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers lazy { json_auth_header(node) }
-  action :post
-  notifies :create, "file[#{Chef::Config['file_cache_path']}/flow_ds]", :immediately
-  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/flow_ds") }
+#http_request 'create fault datasource' do
+#  url "http://localhost:#{port}/api/datasources"
+#  message "{ \"name\": \"opennms-fault\",  \"type\": \"opennms-helm-fault-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
+#  headers lazy { json_auth_header(node) }
+#  action :post
+#  notifies :create, "file[#{Chef::Config['file_cache_path']}/fault_ds]", :immediately
+#  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/fault_ds") }
+#end
+
+grafana_datasource 'opennms-flow' do
+  datasource(
+    type: 'opennms-helm-flow-datasource',
+    access: 'proxy',
+    url: "http://#{opennms_host}:#{opennms_port}/opennms",
+    basicAuth: true,
+    basicAuthUser: 'admin',
+    basicAuthPassword: opennms_password,
+  )
+  admin_user node['grafana']['ini']['security']['admin_user']
+  admin_password node['grafana']['ini']['security']['admin_password']
+  action :create
 end
+
+#http_request 'create flow datasource' do
+#  url "http://localhost:#{port}/api/datasources"
+#  message "{ \"name\": \"opennms-flow\",  \"type\": \"opennms-helm-flow-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
+#  headers lazy { json_auth_header(node) }
+#  action :post
+#  notifies :create, "file[#{Chef::Config['file_cache_path']}/flow_ds]", :immediately
+#  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/flow_ds") }
+#end
 file "#{Chef::Config['file_cache_path']}/helm_enabled" do
   action :nothing
 end
-file "#{Chef::Config['file_cache_path']}/performance_ds" do
-  action :nothing
-end
-file "#{Chef::Config['file_cache_path']}/fault_ds" do
-  action :nothing
-end
-file "#{Chef::Config['file_cache_path']}/flow_ds" do
-  action :nothing
-end
+#file "#{Chef::Config['file_cache_path']}/performance_ds" do
+#  action :nothing
+#end
+#file "#{Chef::Config['file_cache_path']}/fault_ds" do
+#  action :nothing
+#end
+#file "#{Chef::Config['file_cache_path']}/flow_ds" do
+#  action :nothing
+#end

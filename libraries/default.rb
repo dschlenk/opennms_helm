@@ -1,7 +1,7 @@
 module Opennms
   module Helm
     def auth_header(node)
-      sec = node['grafana_ini']['security']
+      sec = node['grafana']['ini']['security']
       { 'Authorization' => "Basic #{Base64.strict_encode64(sec['admin_user'] + ':' + sec['admin_password'])}" }
     end
 
