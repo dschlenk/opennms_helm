@@ -23,14 +23,14 @@ end
 
 %w(performance fault flow).each do |type|
   %w(localhost remotehost).each do |host|
-    describe http("http://localhost:8123/api/datasources/name/opennms-#{type}-#{host}", auth: { user: 'admin', pass: 'admin'}, enable_remote_worker: false) do
+    describe http("http://localhost:3000/api/datasources/name/opennms-#{type}-#{host}", auth: { user: 'admin', pass: 'admin' }, enable_remote_worker: true) do
       its('status') { should eq 200 }
-      its('body') { should match /\{"id":\d+,"orgId":\d+,"name":"opennms-#{type}-#{host}","type":"opennms-helm-#{type}-datasource","typeLogoUrl":"","access":"proxy","url":"http:\/\/#{host}:8980\/opennms","password":"","user":"","database":"","basicAuth":true,"basicAuthUser":"admin","basicAuthPassword":"admin","withCredentials":false,"isDefault":false,"jsonData":\{\},"secureJsonFields":\{\},"version":1,"readOnly":true\}/ }
+      its('body') { should match %r(\{"id":\d+,"orgId":\d+,"name":"opennms-#{type}-#{host}","type":"opennms-helm-#{type}-datasource","typeLogoUrl":"","access":"proxy","url":"http:\/\/#{host}:8980\/opennms","password":"","user":"","database":"","basicAuth":true,"basicAuthUser":"admin","basicAuthPassword":"admin","withCredentials":false,"isDefault":false,"jsonData":\{\},"secureJsonFields":\{\},"version":1,"readOnly":true\}) }
     end
   end
 end
 
-describe http('http://localhost:8123/api/orgs/name/Main%20Org%2E', auth: { user: 'admin', pass: 'admin'}, enable_remote_worker: false) do
+describe http('http://localhost:3000/api/orgs/name/Main%20Org%2E', auth: { user: 'admin', pass: 'admin' }, enable_remote_worker: true) do
   its('status') { should eq 200 }
   its('body') { should match /\{"id":\d+,"name":"Main Org.","address":\{"address1":"","address2":"","city":"","zipCode":"","state":"","country":""\}\}/ }
 end
