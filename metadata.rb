@@ -4,7 +4,7 @@ maintainer_email 'dschlenk@convergeone.com'
 license 'Apache-2.0'
 description 'Installs/Configures OpenNMS Helm'
 long_description 'Installs/Configures OpenNMS Helm'
-version '0.2.0'
+version '1.0.0'
 chef_version '>= 12.14' if respond_to?(:chef_version)
 depends 'grafana', '~> 3.0'
 supports 'centos', '>= 6.0'

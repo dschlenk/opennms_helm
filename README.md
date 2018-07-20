@@ -7,54 +7,48 @@ This cookbook allows you to manage the installation and configuration of Grafana
 * CentOS 6 or 7
 * An OpenNMS system, ideally managed with the [OpenNMS Chef cookbook](https://github.com/dschlenk/opennms-cookbook), potentially on the same Chef node.
 * Chef >= 12.14
-* A yum repository that contains the Helm RPM.
 
 ## Usage
 
-The easiest way to deploy is to add this cookbook's default recipe to a Chef node that already has the OpenNMS managed by Chef. Continue reading for additional options, however.
+### Quick Start
 
-### Prerequisites
+The easiest way to deploy is to add this cookbook's default recipe to a Chef node that can search for a node (potentially itself) that is running OpenNMS already and is managed by Chef.  
 
-#### Yum Repo
+### Package and Version Options
 
-If you'd like to manage the yum repo that contains the Helm RPM in it with Chef, include the `opennms::repositories` recipe in your node's run list.
+By default the public [grafana cookbook](https://github.com/sous-chefs/grafana) is used to install Grafana. Refer to that cookbook's documentation for options to control Grafana including selecting a specific version, changing values in the ini file, using LDAP for authentication, etc. The attributes specified in this cookbook select a version of Grafana that is known to work with the version of the OpenNMS Helm plugin at the time of release, but newer releases may exist. To change the Grafana version, set this node attribute: `node['grafana']['package']['version']`. To change the Helm version, set this node attribute: `node['helm']['version']`.
 
-#### OpenNMS Server Attributes
+If for some strange reason you'd rather manage the grafana installation and configuration yourself, simply change `node['helm']['manage_grafana']` to false. This cookbook will still install the helm package and attempt to set up datasources for your OpenNMS instance(s).
 
-When not adding the default recipe to a node that also has OpenNMS managed by Chef, you need to set some additional node attributes. Set the following node attributes (via role, environment, wrapper cookbook, etc):
+### OpenNMS Datasources
 
-* `node['opennms']['host']`
-* `node['opennms']['properties']['jetty']['port']`
-* `node['opennms']['secure_admin_password']`
+Helm needs some OpenNMS fault, performance and flow datasources to operate. The default method by which OpenNMS instances are found to create these datasources is through a Chef search query for nodes that have the opennms default recipe in its recipes list. You can modify that behavior with the node attribute `node['helm']['instance_search']`.
 
-### Advanced Options
+By default performance, fault and flow datasources are created for each OpenNMS instance found or specified. You can modify that with the node attribute `node['helm']['datasource_types']`.
 
-#### Tweaking Grafana
+### Manually Specify OpenNMS Instances
 
-##### grafana.ini
-Any option in the Grafana ini file can be changed with node attributes. For example, to change the temp data lifetime to 48 hours, you would set this node attribute:
+You can manually specify the OpenNMS instance(s) you want to use as your datasources rather than using the default Chef search query method. To do so, populate the node attribute `node['opennms']['instances']` similarly to:
 
 ```
-node['grafana_ini']['paths']['temp_data_lifetime'] = '48h'
+default['opennms']['instances']['localhost']['port'] = 8980
+default['opennms']['instances']['localhost']['username'] = 'admin'
+default['opennms']['instances']['localhost']['password'] = 'admin'
 ```
 
-This would result in the `[paths]` section of the ini file looking something like:
-```
-[paths]
-temp_data_lifetime = '48h'
-```
-Each ini section has a Chef mash key in `attributes/default.rb`. (Future versions of Grafana will likely introduce additional ini sections (or remove some of the existing ones), but you can easily override these to fit whatever version of Grafana you want to use).
+### Manage Organizations
 
-##### ldap.toml
-
-If you'd like to use LDAP for authentication you can customize the ldap.toml file provided with Grafana. See `attributes/default.rb` for defaults. Note that you will need to set one or more node attributes to modify the ini file for this to do anything:
+If you'd like to manage Grafana organiztions you can do so by adding node attributes under `node['helm']['organizations']`. For example, the default attributes include the 'Main Org.' organization (which is included with Grafana OOTB):
 
 ```
-node['grafana_ini']['auth.ldap']['enabled'] = true
-node['grafana_ini']['auth.ldap']['enabled'] = true
-`
+default['helm']['organizations']['Main Org.']['name'] = 'Main Org.'
+```
 
-Configuration of LDAP via node attributes is similar to grafana.ini however the base template contains a bit more static content. See `templates/default/ldap.toml.erb` along with the default values under the `grafana_ldap` key in `attributes/default.rb` for more details along with [Grafana's docs on LDAP authentication](http://docs.grafana.org/installation/ldap/) for more information. 
+A future version of this cookbook may allow you to manage users as well, but for now management of organizations is probably only useful when using LDAP for authentication.
+
+### Dashboards
+
+This cookbook does not attempt to manage dashboards at this time. At the time of writing, Helm ships with an example dashboard called 'Flow Deep Dive'. You can use the `grafana_dashboard` resource in your own wrapper to deploy additional dashboards.
 
 ## License
 Apache 2.0
@@ -72,15 +66,3 @@ The default rake task will run the style, lint and unit tests.
 Use `rake integration:vagrant` to run the integration tests. 
 
 Pull requests welcome!
-
-FAQs
-====
-
-Q: Why aren't you using the [grafana cookbook](https://github.com/sous-chefs/grafana) to install Grafana?
-A: I don't have a particularly good reason. In fact, the next release most likely will use that cookbook to handle the installation of Grafana and will also let you decide if you want to handle installation of grafana on your own (with your own wrapper or whatnot).
-
-Q: Who is using this?
-A: Right now, mostly tests in the main OpenNMS cookbook, but once refactored to use the Grafana cookbook it should prove quite useful for anyone that wants to use Helm.
-
-Q: Can I do multiple OpenNMS data sources?
-A: Not yet. After the refactor, yes.
