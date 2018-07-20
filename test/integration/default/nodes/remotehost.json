@@ -1,0 +1,27 @@
+{
+  "id":       "remotehost",
+  "name":     "remotehost",
+  "chef_type": "node",
+  "json_class": "Chef::Node",
+  "run_list": ["recipe[opennms]"],
+  "chef_environment": "production",
+  "automatic": {
+    "fqdn": "remotehost",
+    "ip": "127.0.0.2",
+    "recipes": ["opennms"]
+  },
+  "default": {
+    "opennms": {
+      "properties": {
+        "jetty": {
+          "port": 8980
+        }
+      },
+      "users": {
+        "admin": {
+          "password": "admin"
+        }
+      }
+    }
+  }
+}

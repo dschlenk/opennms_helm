@@ -16,53 +16,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-yum_repository 'grafana' do
-  baseurl node['helm']['grafana_yum']['baseurl']
-  gpgkey node['helm']['grafana_yum']['gpgkey']
-  only_if { node['helm']['manage_grafana_repo'] }
-end
-
-yum_package 'grafana' do
-  version node['grafana']['version']
-  flush_cache true
-end
+include_recipe 'grafana::default' if node['helm']['manage_grafana']
 
 package 'opennms-helm' do
   version node['helm']['version']
-end
-
-service 'grafana-server' do
-  supports status: true, restart: true
-  action :enable
-end
-
-template '/etc/grafana/grafana.ini' do
-  source 'grafana.ini.erb'
-  mode 00640
-  owner 'root'
-  group 'grafana'
-  variables(
-    grafana: node['grafana_ini']
-  )
-  notifies :restart, 'service[grafana-server]'
-end
-
-template '/etc/grafana/ldap.toml' do
-  source 'ldap.toml.erb'
-  mode 00640
-  owner 'root'
-  group 'grafana'
-  variables(
-    ldap: node['grafana_ldap']
-  )
   notifies :restart, 'service[grafana-server]', :immediately
 end
 
-# enable the helm app
-# curl -v --basic -XPOST 'admin:admin@localhost:3001/api/plugins/opennms-helm-app/settings?enabled=true' -d ''
-port = node['grafana_ini']['server']['http_port'] || 3000
+# enable the helm plugin
+# START until https://github.com/sous-chefs/grafana/pull/197
+# grafana_plugin 'opennms-helm-app' do
+#  action :install
+# end
 
-Chef::Resource::HttpRequest.send(:include, Opennms::Helm)
+port = node['grafana']['ini']['server']['http_port'] || 3000
 http_request 'enable helm' do
   url "http://localhost:#{port}/api/plugins/opennms-helm-app/settings"
   message 'id=opennms-helm-app&enabled=true'
@@ -71,54 +38,42 @@ http_request 'enable helm' do
   notifies :create, "file[#{Chef::Config['file_cache_path']}/helm_enabled]", :immediately
   not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/helm_enabled]") }
 end
+# END until https://github.com/sous-chefs/grafana/pull/197
 
-opennms_host = 'localhost'
-if node.key?('opennms') && node['opennms'].key?('host')
-  opennms_host = node['opennms']['host']
-end
-opennms_port = 8980
-if node.key?('opennms') && node['opennms'].key?('properties') && node['opennms']['properties'].key?('jetty') && node['opennms']['properties']['jetty'].key?('port')
-  opennms_port = node['opennms']['properties']['jetty']['port']
-end
-opennms_password = 'admin'
-if node.key?('opennms') && node['opennms'].key?('secure_admin_password')
-  opennms_password = node['opennms']['secure_admin_password']
-end
-http_request 'create performance datasource' do
-  url "http://localhost:#{port}/api/datasources"
-  message "{ \"name\": \"opennms-performance\",  \"type\": \"opennms-helm-performance-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers lazy { json_auth_header(node) }
-  action :post
-  notifies :create, "file[#{Chef::Config['file_cache_path']}/performance_ds]", :immediately
-  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/performance_ds") }
+# disable search by specifying node['opennms']['instances'] yourself
+if node['opennms'].nil? || !node['opennms'].key?('instances')
+  opennms_instances = search(:node, node['helm']['instance_search'])
+  opennms_instances.each do |instance|
+    node.default['opennms']['instances'][instance['fqdn']]['port'] = instance['opennms']['properties']['jetty']['port']
+    node.default['opennms']['instances'][instance['fqdn']]['username'] = 'admin'
+    node.default['opennms']['instances'][instance['fqdn']]['password'] = instance['opennms']['users']['admin']['password']
+  end
 end
 
-http_request 'create fault datasource' do
-  url "http://localhost:#{port}/api/datasources"
-  message "{ \"name\": \"opennms-fault\",  \"type\": \"opennms-helm-fault-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers lazy { json_auth_header(node) }
-  action :post
-  notifies :create, "file[#{Chef::Config['file_cache_path']}/fault_ds]", :immediately
-  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/fault_ds") }
+Chef::Log.fatal "No OpenNMS instances found. Either modify the search string (node['helm']['instance_search'], currently #{node['helm']['instance_search']}) or manually specify OpenNMS instances under node['opennms']['instances']. See README.md for more info." if node['opennms'].nil? || node['opennms']['instances'].nil?
+
+node['opennms']['instances'].each do |host, nms|
+  node['helm']['datasource_types'].each do |type|
+    grafana_datasource "opennms-#{type}-#{host}" do
+      datasource helm_datasource(host, nms, type)
+      admin_user node['grafana']['ini']['security']['admin_user']
+      admin_password node['grafana']['ini']['security']['admin_password']
+      action :create
+    end
+  end
 end
 
-http_request 'create flow datasource' do
-  url "http://localhost:#{port}/api/datasources"
-  message "{ \"name\": \"opennms-flow\",  \"type\": \"opennms-helm-flow-datasource\",  \"access\": \"proxy\",   \"url\": \"http://#{opennms_host}:#{opennms_port}/opennms\",  \"basicAuth\": true,  \"basicAuthUser\": \"admin\",  \"basicAuthPassword\": \"#{opennms_password}\" }"
-  headers lazy { json_auth_header(node) }
-  action :post
-  notifies :create, "file[#{Chef::Config['file_cache_path']}/flow_ds]", :immediately
-  not_if { ::File.exist?("#{Chef::Config['file_cache_path']}/flow_ds") }
+node['helm']['organizations'].each do |name, org|
+  grafana_organization name do
+    organization(
+      name: org['name']
+    )
+    admin_user node['grafana']['ini']['security']['admin_user']
+    admin_password node['grafana']['ini']['security']['admin_password']
+    action :update
+  end
 end
+
 file "#{Chef::Config['file_cache_path']}/helm_enabled" do
-  action :nothing
-end
-file "#{Chef::Config['file_cache_path']}/performance_ds" do
-  action :nothing
-end
-file "#{Chef::Config['file_cache_path']}/fault_ds" do
-  action :nothing
-end
-file "#{Chef::Config['file_cache_path']}/flow_ds" do
   action :nothing
 end

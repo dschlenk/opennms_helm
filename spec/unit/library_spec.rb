@@ -2,7 +2,7 @@ require 'spec_helper'
 
 describe Opennms::Helm do
   describe '#auth_header(node)' do
-    let(:node) { { 'grafana_ini' => { 'security' => { 'admin_user' => 'admin', 'admin_password' => 'admin' } } } }
+    let(:node) { { 'grafana' => { 'ini' => { 'security' => { 'admin_user' => 'admin', 'admin_password' => 'admin' } } } } }
     let(:dummy_class) { Class.new { include Opennms::Helm } }
 
     it 'gives us the right auth header' do
